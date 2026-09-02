@@ -85,21 +85,22 @@ export default function Auth() {
         </div>
 
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <label style={{ color: 'var(--text-secondary)' }}>Password</label>
-            {!isSignUp && (
-              <button type="button" onClick={handleResetPassword} style={{ color: 'var(--accent-teal)', fontSize: '0.85rem' }}>
-                Forgot Login Password?
-              </button>
-            )}
-          </div>
+          <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Password</label>
           <input 
             type="password" 
-            required={!isSignUp ? true : true} 
+            required 
             value={password} 
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Supabase account password"
+            style={{ width: '100%' }}
           />
+          {!isSignUp && (
+            <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
+              <button type="button" onClick={handleResetPassword} style={{ color: 'var(--accent-teal)', fontSize: '0.85rem' }}>
+                Forgot Login Password?
+              </button>
+            </div>
+          )}
         </div>
 
         <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '1rem' }}>

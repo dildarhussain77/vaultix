@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { useAuth } from './AuthContext';
 
 const AUTO_LOCK_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -11,8 +12,16 @@ interface VaultContextType {
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
 
 export function VaultProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [dataKey, setDataKey] = useState<CryptoKey | null>(null);
   const timeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // If user signs out, immediately lock the vault
+    if (!user) {
+      lockVault();
+    }
+  }, [user]);
 
   const lockVault = () => {
     setDataKey(null);

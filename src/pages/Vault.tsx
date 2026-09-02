@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useVault } from '../context/VaultContext';
 import { encryptData, decryptData } from '../lib/crypto';
 import { saveEncryptedVaultCache, loadEncryptedVaultCache } from '../lib/cache';
-import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy } from 'lucide-react';
+import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check } from 'lucide-react';
 
 interface CredentialData {
   title: string; // Required
@@ -84,10 +84,13 @@ export default function Vault() {
     }));
   };
 
-  const copyToClipboard = async (text: string) => {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string, fieldId: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      // alert('Copied to clipboard!'); // Removed alert to make copying smoother
+      setCopiedField(fieldId);
+      setTimeout(() => setCopiedField(null), 2000);
     } catch (err) {
       alert('Failed to copy!');
     }
@@ -428,15 +431,17 @@ export default function Vault() {
     );
   };
 
-  // Helper to render simple text fields
-  const renderField = (label: string, value: string | undefined) => {
+  const renderField = (id: string, label: string, value: string | undefined) => {
     if (!value) return null;
+    const fieldId = `${id}_${label}`;
     return (
       <div style={{ marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>{label}</span>
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem', wordBreak: 'break-all' }}>
-          {value}
-          <button onClick={() => copyToClipboard(value)} style={{ color: 'var(--text-muted)' }} title={`Copy ${label}`}><Copy size={12} /></button>
+        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', wordBreak: 'break-all' }}>
+          <span style={{ paddingRight: '0.5rem' }}>{value}</span>
+          <button onClick={() => copyToClipboard(value, fieldId)} style={{ color: copiedField === fieldId ? 'var(--success-color)' : 'var(--text-muted)', flexShrink: 0 }} title={`Copy ${label}`}>
+            {copiedField === fieldId ? <Check size={14} /> : <Copy size={12} />}
+          </button>
         </div>
       </div>
     );
@@ -445,16 +450,21 @@ export default function Vault() {
   // Helper to render sensitive fields with masking
   const renderSensitiveField = (id: string, fieldName: string, label: string, value: string | undefined) => {
     if (!value) return null;
-    const isVisible = visibleFields[`${id}_${fieldName}`];
+    const fieldId = `${id}_${fieldName}`;
+    const isVisible = visibleFields[fieldId];
     return (
       <div style={{ marginBottom: '0.5rem' }}>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>{label}</span>
-        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ wordBreak: 'break-all' }}>{isVisible ? value : '••••••••'}</span>
-          <button onClick={() => toggleFieldVisibility(id, fieldName)} style={{ color: 'var(--text-muted)' }} title={isVisible ? "Hide" : "Show"}>
-            {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', wordBreak: 'break-all', paddingRight: '0.5rem' }}>
+            <span>{isVisible ? value : '••••••••'}</span>
+            <button onClick={() => toggleFieldVisibility(id, fieldName)} style={{ color: 'var(--text-muted)' }} title={isVisible ? "Hide" : "Show"}>
+              {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+          </div>
+          <button onClick={() => copyToClipboard(value, fieldId)} style={{ color: copiedField === fieldId ? 'var(--success-color)' : 'var(--text-muted)', flexShrink: 0 }} title={`Copy ${label}`}>
+            {copiedField === fieldId ? <Check size={14} /> : <Copy size={12} />}
           </button>
-          <button onClick={() => copyToClipboard(value)} style={{ color: 'var(--text-muted)' }} title={`Copy ${label}`}><Copy size={12} /></button>
         </div>
       </div>
     );
@@ -507,10 +517,10 @@ export default function Vault() {
             <Upload size={16} /> Import Backup
             <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
           </label>
-          <button onClick={lockVault} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+          <button onClick={() => { if(window.confirm("Are you sure you want to lock the vault?")) lockVault(); }} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
             <Lock size={16} /> Lock Vault
           </button>
-          <button onClick={signOut} style={{ width: '100%', padding: '0.5rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <button onClick={() => { if(window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ width: '100%', padding: '0.5rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
             <LogOut size={16} /> Sign out
           </button>
         </div>
@@ -686,13 +696,13 @@ export default function Vault() {
                   </div>
                 </div>
 
-                {renderField("Username", cred.data.username)}
-                {renderField("Email", cred.data.email)}
+                {renderField(cred.id, "Username", cred.data.username)}
+                {renderField(cred.id, "Email", cred.data.email)}
                 {renderSensitiveField(cred.id, "password", "Password", cred.data.password)}
                 
-                {renderField("Account ID", cred.data.accountId)}
-                {renderField("Phone", cred.data.phone)}
-                {renderField("Recovery Info", cred.data.recoveryContact)}
+                {renderField(cred.id, "Account ID", cred.data.accountId)}
+                {renderField(cred.id, "Phone", cred.data.phone)}
+                {renderField(cred.id, "Recovery Info", cred.data.recoveryContact)}
                 
                 {renderSensitiveField(cred.id, "token", "Token", cred.data.token)}
                 {renderSensitiveField(cred.id, "apiKey", "API Key", cred.data.apiKey)}

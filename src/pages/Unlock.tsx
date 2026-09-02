@@ -125,7 +125,7 @@ export default function Unlock() {
           Forgot Password?
         </Link>
         
-        <button onClick={signOut} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
+        <button onClick={() => { if(window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
           <LogOut size={16} /> Sign out
         </button>
       </div>
