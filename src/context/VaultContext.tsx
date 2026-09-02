@@ -22,17 +22,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const resetTimer = () => {
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-    }
-    if (dataKey) {
-      timeoutRef.current = window.setTimeout(() => {
-        lockVault();
-      }, AUTO_LOCK_MS);
-    }
-  };
-
   const unlockVault = (key: CryptoKey) => {
     setDataKey(key);
     // Timer is started by the useEffect since dataKey changes

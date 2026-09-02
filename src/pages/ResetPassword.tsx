@@ -12,7 +12,7 @@ export default function ResetPassword() {
   useEffect(() => {
     // Listen for the password recovery event
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event) => {
         if (event == "PASSWORD_RECOVERY") {
           // The user clicked the link and is now ready to set a new password
         }
