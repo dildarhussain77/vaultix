@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useVault } from '../context/VaultContext';
 import { encryptData, decryptData, generateRecoveryPhrase, deriveKeyFromPassword, wrapDataKey, generateSalt, bufferToBase64 } from '../lib/crypto';
 import { saveEncryptedVaultCache, loadEncryptedVaultCache } from '../lib/cache';
-import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check, ShieldAlert, AlertTriangle, Search, ArrowLeft } from 'lucide-react';
+import PasswordStrength from '../components/PasswordStrength';
 
 interface CredentialData {
   title: string; // Required
@@ -17,6 +19,7 @@ interface CredentialData {
   token?: string;
   apiKey?: string;
   secretKey?: string;
+  website?: string;
   notes?: string;
 }
 
@@ -36,11 +39,20 @@ export default function Vault() {
   const { user, signOut } = useAuth();
   const { dataKey, lockVault } = useVault();
   
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentFolderId = searchParams.get('folder');
+
+  const setCurrentFolderId = (id: string | null) => {
+    if (id) {
+      setSearchParams({ folder: id });
+    } else {
+      setSearchParams({});
+    }
+  };
+  
   const [credentials, setCredentials] = useState<DecryptedCredential[]>([]);
   const [folders, setFolders] = useState<FolderData[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   
   // Mobile UI state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -67,9 +79,13 @@ export default function Vault() {
   const [formToken, setFormToken] = useState('');
   const [formApiKey, setFormApiKey] = useState('');
   const [formSecretKey, setFormSecretKey] = useState('');
+  const [formWebsite, setFormWebsite] = useState('');
   const [formNotes, setFormNotes] = useState('');
 
   const [formFolderName, setFormFolderName] = useState('');
+  
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Form Visibility States
   const [showFormPassword, setShowFormPassword] = useState(false);
@@ -197,6 +213,7 @@ export default function Vault() {
     if (formToken) payload.token = formToken;
     if (formApiKey) payload.apiKey = formApiKey;
     if (formSecretKey) payload.secretKey = formSecretKey;
+    if (formWebsite) payload.website = formWebsite;
     if (formNotes) payload.notes = formNotes;
 
     try {
@@ -253,6 +270,7 @@ export default function Vault() {
     setFormToken(cred.data.token || '');
     setFormApiKey(cred.data.apiKey || '');
     setFormSecretKey(cred.data.secretKey || '');
+    setFormWebsite(cred.data.website || '');
     setFormNotes(cred.data.notes || '');
     
     setEditingCredId(cred.id);
@@ -336,6 +354,7 @@ export default function Vault() {
     setFormToken('');
     setFormApiKey('');
     setFormSecretKey('');
+    setFormWebsite('');
     setFormNotes('');
     
     setFormFolderName('');
@@ -436,8 +455,43 @@ export default function Vault() {
   };
 
   const currentFolder = folders.find(f => f.id === currentFolderId);
-  const displayedCredentials = credentials.filter(c => c.folder_id === currentFolderId);
-  const displayedFolders = folders.filter(f => f.parent_id === currentFolderId);
+  const displayedCredentials = credentials.filter(c => {
+    if (searchQuery.trim() !== '') {
+      // Flatten view for search
+      const q = searchQuery.toLowerCase();
+      const title = (c.data.title || '').toLowerCase();
+      const username = (c.data.username || '').toLowerCase();
+      return title.includes(q) || username.includes(q);
+    }
+    return c.folder_id === currentFolderId;
+  });
+  const displayedFolders = searchQuery.trim() !== '' ? [] : folders.filter(f => f.parent_id === currentFolderId);
+
+  const handleFolderChange = (id: string | null) => {
+    setCurrentFolderId(id);
+    setShowAddForm(false);
+    setShowFolderForm(false);
+    resetForms();
+  };
+
+  const getBreadcrumbTrail = (folderId: string | null) => {
+    const trail = [];
+    let current = folders.find(f => f.id === folderId);
+    while (current) {
+      trail.unshift(current);
+      current = folders.find(f => f.id === current?.parent_id);
+    }
+    return trail;
+  };
+
+  const handleNavigateBack = () => {
+    if (currentFolderId) {
+      const current = folders.find(f => f.id === currentFolderId);
+      if (current) {
+        handleFolderChange(current.parent_id);
+      }
+    }
+  };
 
   const renderTree = (parentId: string | null, depth = 0) => {
     const children = folders.filter(f => f.parent_id === parentId);
@@ -448,7 +502,7 @@ export default function Vault() {
         {children.map(f => (
           <div key={f.id}>
             <div 
-              onClick={() => { setCurrentFolderId(f.id); setSidebarOpen(false); }}
+              onClick={() => { handleFolderChange(f.id); setSidebarOpen(false); }}
               style={{ 
                 padding: '0.5rem', 
                 cursor: 'pointer', 
@@ -528,7 +582,7 @@ export default function Vault() {
         
         <div style={{ flex: 1, overflowY: 'auto', marginBottom: '1rem' }}>
           <div 
-            onClick={() => { setCurrentFolderId(null); setSidebarOpen(false); }}
+            onClick={() => { handleFolderChange(null); setSidebarOpen(false); }}
             style={{ 
               padding: '0.5rem', 
               cursor: 'pointer', 
@@ -540,7 +594,7 @@ export default function Vault() {
               marginBottom: '0.5rem'
             }}
           >
-            <Folder size={18} /> Root
+            <Folder size={18} /> Home
           </div>
           {renderTree(null)}
         </div>
@@ -574,13 +628,46 @@ export default function Vault() {
           <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} style={{ color: 'var(--text-primary)' }}>
             <Menu size={24} />
           </button>
-          <span onClick={() => setCurrentFolderId(null)} style={{ cursor: 'pointer' }}>Root</span>
-          {currentFolder && (
-            <>
-              <ChevronRight size={16} />
-              <span style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>{currentFolder.name}</span>
-            </>
+          
+          {currentFolderId && (
+            <button onClick={handleNavigateBack} style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', paddingRight: '0.5rem', borderRight: '1px solid var(--border-color)', marginRight: '0.5rem' }}>
+              <ArrowLeft size={18} />
+            </button>
           )}
+
+          <span onClick={() => handleFolderChange(null)} style={{ cursor: 'pointer', color: currentFolderId === null ? 'var(--text-primary)' : 'inherit', fontWeight: currentFolderId === null ? 'bold' : 'normal' }}>Home</span>
+          
+          {getBreadcrumbTrail(currentFolderId).map((f, index, arr) => (
+            <React.Fragment key={f.id}>
+              <ChevronRight size={16} />
+              <span 
+                onClick={() => handleFolderChange(f.id)} 
+                style={{ 
+                  cursor: 'pointer', 
+                  color: index === arr.length - 1 ? 'var(--text-primary)' : 'inherit', 
+                  fontWeight: index === arr.length - 1 ? 'bold' : 'normal',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxWidth: '120px'
+                }}
+              >
+                {f.name}
+              </span>
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Search Bar */}
+        <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
+          <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input 
+            type="text" 
+            placeholder="Search credentials by title or username..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: '100%', paddingLeft: '3rem', backgroundColor: 'var(--bg-tertiary)' }}
+          />
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
@@ -606,7 +693,7 @@ export default function Vault() {
 
         {showAddForm && (
           <form onSubmit={handleSaveCredential} style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--radius-md)', marginBottom: '2rem', border: '1px solid var(--border-color)' }}>
-            <h3>{editingCredId ? 'Edit Credential' : `New Credential ${currentFolder ? `in ${currentFolder.name}` : 'in Root'}`}</h3>
+            <h3>{editingCredId ? 'Edit Credential' : `New Credential ${currentFolder ? `in ${currentFolder.name}` : 'in Home'}`}</h3>
             
             <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
               
@@ -628,11 +715,17 @@ export default function Vault() {
               <div>
                 <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Password</label>
                 <div style={{ position: 'relative' }}>
-                  <input type={showFormPassword ? "text" : "password"} placeholder="Password" value={formPassword} onChange={e => setFormPassword(e.target.value)} style={{ paddingRight: '2.5rem' }} />
+                  <input type={showFormPassword ? "text" : "password"} placeholder="Password" value={formPassword} onChange={e => setFormPassword(e.target.value)} style={{ paddingRight: '2.5rem', width: '100%' }} />
                   <button type="button" onClick={() => setShowFormPassword(!showFormPassword)} style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>
                     {showFormPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                <PasswordStrength password={formPassword} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Website URL</label>
+                <input type="url" placeholder="https://example.com" value={formWebsite} onChange={e => setFormWebsite(e.target.value)} />
               </div>
 
               <div>
@@ -708,7 +801,7 @@ export default function Vault() {
             {displayedFolders.map(folder => (
               <div 
                 key={folder.id} 
-                onClick={() => setCurrentFolderId(folder.id)}
+                onClick={() => handleFolderChange(folder.id)}
                 style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 'bold', maxWidth: '70%' }}>
@@ -740,6 +833,20 @@ export default function Vault() {
                 {renderField(cred.id, "Email", cred.data.email)}
                 {renderSensitiveField(cred.id, "password", "Password", cred.data.password)}
                 
+                {cred.data.website && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Website</span>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--accent-teal)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', wordBreak: 'break-all' }}>
+                      <a href={cred.data.website.startsWith('http') ? cred.data.website : `https://${cred.data.website}`} target="_blank" rel="noopener noreferrer" style={{ paddingRight: '0.5rem', color: 'inherit', textDecoration: 'underline' }}>
+                        {cred.data.website}
+                      </a>
+                      <button onClick={() => copyToClipboard(cred.data.website || '', `${cred.id}_Website`)} style={{ color: copiedField === `${cred.id}_Website` ? 'var(--success-color)' : 'var(--text-muted)', flexShrink: 0 }} title="Copy Website">
+                        {copiedField === `${cred.id}_Website` ? <Check size={14} /> : <Copy size={12} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
                 {renderField(cred.id, "Account ID", cred.data.accountId)}
                 {renderField(cred.id, "Phone", cred.data.phone)}
                 {renderField(cred.id, "Recovery Info", cred.data.recoveryContact)}
@@ -750,7 +857,12 @@ export default function Vault() {
                 
                 {cred.data.notes && (
                   <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>Notes</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Notes</span>
+                      <button onClick={() => copyToClipboard(cred.data.notes || '', `${cred.id}_Notes`)} style={{ color: copiedField === `${cred.id}_Notes` ? 'var(--success-color)' : 'var(--text-muted)', flexShrink: 0 }} title="Copy Notes">
+                        {copiedField === `${cred.id}_Notes` ? <Check size={14} /> : <Copy size={12} />}
+                      </button>
+                    </div>
                     <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>
                       {cred.data.notes}
                     </div>

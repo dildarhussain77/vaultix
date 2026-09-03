@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Shield } from 'lucide-react';
+import PasswordStrength from '../components/PasswordStrength';
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('');
@@ -63,6 +64,7 @@ export default function ResetPassword() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="New Supabase password"
           />
+          <PasswordStrength password={password} />
         </div>
 
         <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '1rem' }}>

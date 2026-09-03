@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Shield } from 'lucide-react';
+import PasswordStrength from '../components/PasswordStrength';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -94,6 +95,7 @@ export default function Auth() {
             placeholder="Supabase account password"
             style={{ width: '100%' }}
           />
+          {isSignUp && <PasswordStrength password={password} />}
           {!isSignUp && (
             <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
               <button type="button" onClick={handleResetPassword} style={{ color: 'var(--accent-teal)', fontSize: '0.85rem' }}>

@@ -11,6 +11,7 @@ import {
 } from '../lib/crypto';
 import { restoreBackup, type BackupData } from '../lib/backup';
 import { Shield, Upload } from 'lucide-react';
+import PasswordStrength from '../components/PasswordStrength';
 
 export default function Setup() {
   const { user } = useAuth();
@@ -116,6 +117,7 @@ export default function Setup() {
             onChange={(e) => setMasterPassword(e.target.value)}
             placeholder="Make it strong and memorable"
           />
+          <PasswordStrength password={masterPassword} />
         </div>
 
         <div>
