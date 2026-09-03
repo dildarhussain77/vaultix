@@ -17,9 +17,10 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           {
-            src: 'https://cdn.iconscout.com/icon/free/png-256/free-vault-icon-download-in-svg-png-gif-file-formats--locker-money-box-bank-safe-security-pack-crime-icons-1614275.png',
-            sizes: '256x256',
-            type: 'image/png'
+            src: 'vaultix-logo.jpg',
+            sizes: '512x512',
+            type: 'image/jpeg',
+            purpose: 'any maskable'
           }
         ]
       }

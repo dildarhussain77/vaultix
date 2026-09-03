@@ -48,7 +48,7 @@ export default function Auth() {
     setMessage(null);
     try {
       // Supabase needs the redirect URL to include the /reset-password hash route
-      const redirectUrl = `${window.location.origin}/#/reset-password`;
+      const redirectUrl = `${window.location.origin}${window.location.pathname}#/reset-password`;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: redirectUrl,
       });
