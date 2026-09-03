@@ -420,7 +420,7 @@ export default function Vault() {
         .from('wrapped_keys')
         .update({
           recovery_phrase_salt: bufferToBase64(salt),
-          wrapped_data_key_recovery: bufferToBase64(wrappedDataKey)
+          wrapped_data_key_recovery: wrappedDataKey.wrappedKeyBase64
         })
         .eq('user_id', user.id);
         
@@ -554,8 +554,8 @@ export default function Vault() {
             <Upload size={16} /> Import Backup
             <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
           </label>
-          <button onClick={handleRegeneratePhrase} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-purple)' }}>
-            <ShieldAlert size={16} /> Regenerate Phrase
+          <button onClick={handleRegeneratePhrase} disabled={isRegenerating} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-purple)' }}>
+            <ShieldAlert size={16} /> {isRegenerating ? 'Regenerating...' : 'Regenerate Phrase'}
           </button>
           <button onClick={() => { if(window.confirm("Are you sure you want to lock the vault?")) lockVault(); }} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
             <Lock size={16} /> Lock Vault
