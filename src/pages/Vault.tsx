@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useVault } from '../context/VaultContext';
-import { encryptData, decryptData } from '../lib/crypto';
+import { encryptData, decryptData, generateRecoveryPhrase, deriveKeyFromPassword, wrapDataKey, generateSalt, bufferToBase64 } from '../lib/crypto';
 import { saveEncryptedVaultCache, loadEncryptedVaultCache } from '../lib/cache';
-import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check, ShieldAlert, AlertTriangle } from 'lucide-react';
 
 interface CredentialData {
   title: string; // Required
@@ -51,6 +51,10 @@ export default function Vault() {
   
   const [editingCredId, setEditingCredId] = useState<string | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+
+  // Regeneration State
+  const [newRecoveryPhrase, setNewRecoveryPhrase] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   // Expanded Credential Fields
   const [formTitle, setFormTitle] = useState('');
@@ -398,6 +402,39 @@ export default function Vault() {
     }
   };
 
+  const handleRegeneratePhrase = async () => {
+    if (!user || !dataKey) return;
+    
+    if (!window.confirm("Generating a new phrase will instantly invalidate your old one. Are you sure you want to continue?")) {
+      return;
+    }
+
+    setIsRegenerating(true);
+    try {
+      const phrase = generateRecoveryPhrase();
+      const salt = generateSalt();
+      const recoveryKek = await deriveKeyFromPassword(phrase, salt);
+      const wrappedDataKey = await wrapDataKey(dataKey, recoveryKek);
+      
+      const { error } = await supabase
+        .from('wrapped_keys')
+        .update({
+          recovery_phrase_salt: bufferToBase64(salt),
+          wrapped_data_key_recovery: bufferToBase64(wrappedDataKey)
+        })
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      setNewRecoveryPhrase(phrase);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to regenerate recovery phrase.");
+      setIsRegenerating(false);
+    }
+  };
+
   const currentFolder = folders.find(f => f.id === currentFolderId);
   const displayedCredentials = credentials.filter(c => c.folder_id === currentFolderId);
   const displayedFolders = folders.filter(f => f.parent_id === currentFolderId);
@@ -517,6 +554,9 @@ export default function Vault() {
             <Upload size={16} /> Import Backup
             <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
           </label>
+          <button onClick={handleRegeneratePhrase} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-purple)' }}>
+            <ShieldAlert size={16} /> Regenerate Phrase
+          </button>
           <button onClick={() => { if(window.confirm("Are you sure you want to lock the vault?")) lockVault(); }} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
             <Lock size={16} /> Lock Vault
           </button>
@@ -722,6 +762,37 @@ export default function Vault() {
           </div>
         )}
       </div>
+      
+      {/* Recovery Phrase Modal */}
+      {newRecoveryPhrase && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '2rem', borderRadius: 'var(--radius-md)', maxWidth: '400px', width: '100%', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+            <AlertTriangle size={48} color="var(--accent-purple)" style={{ marginBottom: '1rem' }} />
+            <h2 style={{ color: 'var(--accent-purple)', marginBottom: '1rem' }}>New Recovery Phrase</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Your old recovery phrase is now completely invalid. Please write down these 12 words in exactly this order and store them somewhere safe. <strong>We cannot recover them for you.</strong>
+            </p>
+            
+            <div style={{ 
+              backgroundColor: 'var(--bg-tertiary)', 
+              padding: '1.5rem', 
+              borderRadius: 'var(--radius-sm)', 
+              fontSize: '1.25rem', 
+              fontWeight: 'bold', 
+              letterSpacing: '1px', 
+              lineHeight: '1.5',
+              wordSpacing: '0.5rem',
+              marginBottom: '2rem'
+            }}>
+              {newRecoveryPhrase}
+            </div>
+
+            <button onClick={() => { setNewRecoveryPhrase(null); setIsRegenerating(false); }} className="btn-primary" style={{ width: '100%', backgroundColor: 'var(--accent-purple)' }}>
+              I have saved these words safely
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

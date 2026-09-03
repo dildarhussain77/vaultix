@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dist-ssr/
+.git/
+.vscode/
+.idea/
+.env*
+public/
+assets/
+*.png
+*.jpg
+*.svg
