@@ -179,6 +179,47 @@ input:focus, textarea:focus {
   }
   
   .vault-main {
-    padding: 1rem;
+    padding: 0.85rem;
+  }
+
+  /* Compact selection bar items on mobile */
+  .selection-btn-text {
+    display: inline;
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .selection-label-text {
+    display: none;
+  }
+}
+
+/* Dropdown Item Hover */
+.dropdown-item-hover {
+  transition: background-color 0.12s ease;
+}
+.dropdown-item-hover:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Modal and Toast Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

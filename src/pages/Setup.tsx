@@ -13,9 +13,11 @@ import {
 import { restoreBackup, type BackupData } from '../lib/backup';
 import { Shield, Upload } from 'lucide-react';
 import PasswordStrength from '../components/PasswordStrength';
+import { useModal } from '../context/ModalContext';
 
 export default function Setup() {
   const { user } = useAuth();
+  const { showAlert } = useModal();
   const navigate = useNavigate();
 
   const [masterPassword, setMasterPassword] = useState('');
@@ -65,7 +67,12 @@ export default function Setup() {
 
       if (insertError) throw insertError;
 
-      alert(`SETUP COMPLETE!\n\nIMPORTANT: Write down this 12-word recovery phrase. If you forget your Master Password, this is the ONLY way to recover your vault.\n\n${phrase}`);
+      await showAlert({
+        title: "Setup Complete!",
+        message: `IMPORTANT: Write down this 12-word recovery phrase. If you forget your Master Password, this is the ONLY way to recover your vault.\n\n${phrase}`,
+        type: "warning",
+        confirmText: "I've Saved It"
+      });
 
       navigate('/unlock');
     } catch (err: any) {
@@ -88,7 +95,11 @@ export default function Setup() {
 
       await restoreBackup(backupData, user.id);
 
-      alert('Backup restored successfully! You can now unlock your vault.');
+      await showAlert({
+        title: "Backup Restored",
+        message: "Backup restored successfully! You can now unlock your vault.",
+        type: "success"
+      });
       navigate('/unlock');
     } catch (err: any) {
       setRestoreError(err.message || 'Failed to parse or restore backup file.');

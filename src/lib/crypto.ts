@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Web Crypto API Utility for Vaultix
  * Implements Zero-Knowledge envelope encryption.
  */
@@ -9,6 +9,13 @@ const PBKDF2_ITERATIONS_RP = 100000;
 const AES_GCM_TAG_LENGTH = 128;
 const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
+
+// --- Crypto Environment Provider ---
+const getCrypto = (): Crypto => {
+  if (typeof window !== 'undefined' && getCrypto()) return getCrypto();
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) return globalThis.crypto;
+  throw new Error('WebCrypto API not supported in this environment');
+};
 
 // --- Helper: Convert between strings/base64 and Uint8Array ---
 export const encodeText = (text: string): Uint8Array => new TextEncoder().encode(text);
@@ -36,7 +43,7 @@ export const base64ToBuffer = (base64: string): Uint8Array => {
 
 /** Generates a fresh AES-GCM 256-bit Data Key */
 export async function generateDataKey(): Promise<CryptoKey> {
-  return await window.crypto.subtle.generateKey(
+  return await getCrypto().subtle.generateKey(
     {
       name: 'AES-GCM',
       length: 256,
@@ -48,18 +55,18 @@ export async function generateDataKey(): Promise<CryptoKey> {
 
 /** Generates a random Salt */
 export function generateSalt(): Uint8Array {
-  return window.crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+  return getCrypto().getRandomValues(new Uint8Array(SALT_LENGTH));
 }
 
 /** Generates a random Initialization Vector (IV) */
 export function generateIV(): Uint8Array {
-  return window.crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  return getCrypto().getRandomValues(new Uint8Array(IV_LENGTH));
 }
 
 // --- Key Derivation ---
 
 async function getRawKeyMaterial(passwordOrPhrase: string): Promise<CryptoKey> {
-  return await window.crypto.subtle.importKey(
+  return await getCrypto().subtle.importKey(
     'raw',
     encodeText(passwordOrPhrase) as BufferSource,
     { name: 'PBKDF2' },
@@ -71,7 +78,7 @@ async function getRawKeyMaterial(passwordOrPhrase: string): Promise<CryptoKey> {
 /** Derives an AES-KW (Key Wrap) key from a password using PBKDF2 */
 export async function deriveKeyFromPassword(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const keyMaterial = await getRawKeyMaterial(password);
-  return await window.crypto.subtle.deriveKey(
+  return await getCrypto().subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: salt as any,
@@ -88,7 +95,7 @@ export async function deriveKeyFromPassword(password: string, salt: Uint8Array):
 /** Derives an AES-KW key from a recovery phrase */
 export async function deriveKeyFromPhrase(phrase: string, salt: Uint8Array): Promise<CryptoKey> {
   const keyMaterial = await getRawKeyMaterial(phrase);
-  return await window.crypto.subtle.deriveKey(
+  return await getCrypto().subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: salt as any,
@@ -108,7 +115,7 @@ export async function deriveKeyFromPhrase(phrase: string, salt: Uint8Array): Pro
 export async function wrapDataKey(dataKey: CryptoKey, kek: CryptoKey): Promise<{ wrappedKeyBase64: string }> {
   // Note: AES-KW does not use an IV parameter directly in the Web Crypto API, 
   // it uses a default deterministic IV as per RFC 3394.
-  const wrappedKey = await window.crypto.subtle.wrapKey(
+  const wrappedKey = await getCrypto().subtle.wrapKey(
     'raw',
     dataKey,
     kek,
@@ -120,7 +127,7 @@ export async function wrapDataKey(dataKey: CryptoKey, kek: CryptoKey): Promise<{
 /** Unwraps (decrypts) the Data Key using a derived Key Encryption Key (KEK) */
 export async function unwrapDataKey(wrappedKeyBase64: string, kek: CryptoKey): Promise<CryptoKey> {
   const wrappedKey = base64ToBuffer(wrappedKeyBase64);
-  return await window.crypto.subtle.unwrapKey(
+  return await getCrypto().subtle.unwrapKey(
     'raw',
     wrappedKey as BufferSource,
     kek,
@@ -138,7 +145,7 @@ export async function encryptData(data: any, dataKey: CryptoKey): Promise<{ ciph
   const iv = generateIV();
   const encodedData = encodeText(JSON.stringify(data));
   
-  const cipherText = await window.crypto.subtle.encrypt(
+  const cipherText = await getCrypto().subtle.encrypt(
     {
       name: 'AES-GCM',
       iv: iv as BufferSource,
@@ -159,7 +166,7 @@ export async function decryptData(cipherTextBase64: string, ivBase64: string, da
   const cipherText = base64ToBuffer(cipherTextBase64);
   const iv = base64ToBuffer(ivBase64);
 
-  const decryptedBuffer = await window.crypto.subtle.decrypt(
+  const decryptedBuffer = await getCrypto().subtle.decrypt(
     {
       name: 'AES-GCM',
       iv: iv as BufferSource,
@@ -199,7 +206,7 @@ export function generateRecoveryPhrase(): string {
   ];
   const phrase = [];
   const randomValues = new Uint32Array(12);
-  window.crypto.getRandomValues(randomValues);
+  getCrypto().getRandomValues(randomValues);
   
   for (let i = 0; i < 12; i++) {
     phrase.push(wordlist[randomValues[i] % wordlist.length]);

@@ -11,24 +11,39 @@ import {
 } from '../lib/crypto';
 import { loadEncryptedVaultCache } from '../lib/cache';
 import { Lock, LogOut } from 'lucide-react';
+import { useModal } from '../context/ModalContext';
 
 export default function Unlock() {
   const { user, signOut } = useAuth();
   const { unlockVault } = useVault();
+  const { showConfirm } = useModal();
   const navigate = useNavigate();
 
   const [masterPassword, setMasterPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if they need setup
+  // Check if they need setup and verify device authorization
   useEffect(() => {
-    async function checkSetup() {
+    async function checkSetupAndRevocation() {
       if (!user) return;
+
+      // 1. Check if this device was revoked remotely
+      try {
+        const { isCurrentDeviceValid } = await import('../lib/devices');
+        const valid = await isCurrentDeviceValid(user.id);
+        if (!valid) {
+          signOut();
+          return;
+        }
+      } catch (err) {
+        console.warn('Revocation check error:', err);
+      }
+
+      // 2. Check if setup is needed
       try {
         const { data, error } = await supabase.from('wrapped_keys').select('user_id').eq('user_id', user.id).single();
         if (error || !data) {
-          // If offline, supabase throws. We should check cache first before redirecting to setup.
           const cache = await loadEncryptedVaultCache(user.id);
           if (!cache || !cache.wrapped_keys) {
             navigate('/setup');
@@ -41,8 +56,18 @@ export default function Unlock() {
         }
       }
     }
-    checkSetup();
-  }, [user, navigate]);
+
+    checkSetupAndRevocation();
+
+    const onFocus = () => checkSetupAndRevocation();
+    window.addEventListener('focus', onFocus);
+    const interval = setInterval(checkSetupAndRevocation, 20000);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      clearInterval(interval);
+    };
+  }, [user, navigate, signOut]);
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +120,11 @@ export default function Unlock() {
 
       // Success! Both Master Password and Biometrics passed
       unlockVault(dataKey);
+
+      // Send security alert notification
+      const { sendNotification } = await import('../lib/notifications');
+      sendNotification('Vaultix: Vault Unlocked', 'Your secure vault was successfully unlocked.');
+
       navigate('/');
 
 
@@ -137,7 +167,18 @@ export default function Unlock() {
           Forgot Password?
         </Link>
 
-        <button onClick={() => { if (window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
+        <button 
+          onClick={async () => { 
+            const confirmed = await showConfirm({
+              title: "Sign out",
+              message: "Are you sure you want to sign out of your account?",
+              confirmText: "Sign out",
+              cancelText: "Stay"
+            });
+            if (confirmed) signOut(); 
+          }} 
+          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}
+        >
           <LogOut size={16} /> Sign out
         </button>
       </div>
