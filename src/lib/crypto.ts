@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Web Crypto API Utility for Vaultix
  * Implements Zero-Knowledge envelope encryption.
  */
@@ -12,7 +12,7 @@ const IV_LENGTH = 12;
 
 // --- Crypto Environment Provider ---
 const getCrypto = (): Crypto => {
-  if (typeof window !== 'undefined' && getCrypto()) return getCrypto();
+  if (typeof window !== 'undefined' && window.crypto) return window.crypto;
   if (typeof globalThis !== 'undefined' && globalThis.crypto) return globalThis.crypto;
   throw new Error('WebCrypto API not supported in this environment');
 };

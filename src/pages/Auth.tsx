@@ -115,9 +115,10 @@ export default function Auth() {
       if (verifyError) throw verifyError;
 
       if (data.user) {
-        // Mark device verified and register it
-        setDeviceVerified(true);
+        // Mark device verified and register it immediately
+        setDeviceVerified(true, data.user.id);
         showToast("Device verified successfully!", "success");
+        navigate('/');
       }
     } catch (err: any) {
       setError(err.message || 'Invalid or expired verification code.');

@@ -8,7 +8,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isDeviceVerified: boolean;
-  setDeviceVerified: (verified: boolean) => void;
+  setDeviceVerified: (verified: boolean, targetUserId?: string) => void;
   signOut: () => Promise<void>;
 }
 
@@ -52,10 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const setDeviceVerified = (verified: boolean) => {
+  const setDeviceVerified = (verified: boolean, targetUserId?: string) => {
     setIsDeviceVerified(verified);
-    if (verified && user) {
-      registerCurrentDevice(user.id);
+    const uid = targetUserId || user?.id || session?.user?.id;
+    if (verified && uid) {
+      registerCurrentDevice(uid);
     }
   };
 
