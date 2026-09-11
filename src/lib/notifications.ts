@@ -112,13 +112,13 @@ export function clearNotificationHistory(): void {
 }
 
 /**
- * Stores an in-app notification and optionally triggers OS banner.
+ * Stores an in-app notification and triggers native OS banner (desktop or mobile).
  */
-export function sendNotification(
+export async function sendNotification(
   title: string, 
   body: string, 
   type: 'info' | 'success' | 'warning' | 'security' = 'info'
-): void {
+): Promise<void> {
   try {
     // 1. Store in-app notification
     const newNotif: AppNotification = {
@@ -136,14 +136,39 @@ export function sendNotification(
     localStorage.setItem(NOTIFICATIONS_LIST_KEY, JSON.stringify(updatedList));
     window.dispatchEvent(new Event('vaultix-notifications-updated'));
 
-    // 2. Trigger native OS banner if enabled
+    // 2. Trigger native OS banner (Mobile / Desktop)
     if (isNotificationSupported() && Notification.permission === 'granted' && localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) === 'true') {
-      new Notification(title, {
+      const iconUrl = `${import.meta.env.BASE_URL}vaultix-logo.jpg`;
+
+      const notificationOptions: any = {
         body,
-        icon: '/vite.svg',
-        badge: '/vite.svg',
-        tag: 'vaultix-security-alert'
-      });
+        icon: iconUrl,
+        badge: iconUrl,
+        tag: `vaultix-${Date.now()}`,
+        // Vibration pattern for mobile devices (200ms vibrate, 100ms pause, 200ms vibrate)
+        vibrate: [200, 100, 200]
+      };
+
+      // On Mobile browsers (Chrome Android, Safari PWA), new Notification() fails;
+      // it REQUIRES ServiceWorkerRegistration.showNotification()
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          if (reg && reg.showNotification) {
+            await reg.showNotification(title, notificationOptions);
+            return;
+          }
+        } catch (swErr) {
+          console.warn('ServiceWorker showNotification error, falling back to Notification constructor:', swErr);
+        }
+      }
+
+      // Fallback for Desktop browsers that support the constructor
+      try {
+        new Notification(title, notificationOptions);
+      } catch (constructErr) {
+        console.warn('Desktop Notification constructor error:', constructErr);
+      }
     }
   } catch (err) {
     console.warn('Failed to send notification:', err);

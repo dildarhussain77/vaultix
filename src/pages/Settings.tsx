@@ -363,7 +363,8 @@ export default function Settings() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '0.85rem 1rem',
-                color: notificationsEnabled ? 'var(--accent-teal)' : 'var(--text-primary)'
+                color: notificationsEnabled ? 'var(--accent-teal)' : 'var(--text-primary)',
+                marginBottom: notificationsEnabled ? '0.5rem' : '0'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -376,6 +377,30 @@ export default function Settings() {
                 {notificationsEnabled ? 'Turn Off' : 'Turn On'}
               </span>
             </button>
+
+            {notificationsEnabled && (
+              <button
+                onClick={async () => {
+                  const { sendNotification } = await import('../lib/notifications');
+                  await sendNotification('Vaultix Test Alert', 'This is a test notification from Vaultix.', 'info');
+                  showToast('Test notification sent!', 'success');
+                }}
+                className="btn-secondary"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  padding: '0.65rem 1rem',
+                  fontSize: '0.82rem',
+                  color: 'var(--accent-teal)'
+                }}
+              >
+                <Bell size={14} />
+                <span>Send Test Notification</span>
+              </button>
+            )}
           </div>
         )}
 
