@@ -138,15 +138,23 @@ export async function sendNotification(
 
     // 2. Trigger native OS banner (Mobile / Desktop)
     if (isNotificationSupported() && Notification.permission === 'granted' && localStorage.getItem(NOTIFICATIONS_STORAGE_KEY) === 'true') {
-      const iconUrl = `${import.meta.env.BASE_URL}vaultix-logo.jpg`;
+      // Must be an absolute URL for mobile OS notification daemons
+      const baseUrl = window.location.origin + import.meta.env.BASE_URL;
+      const iconUrl = new URL('vaultix-logo.jpg', baseUrl).href;
+      const badgeUrl = new URL('badge-icon.svg', baseUrl).href;
 
       const notificationOptions: any = {
         body,
         icon: iconUrl,
-        badge: iconUrl,
+        badge: badgeUrl,
         tag: `vaultix-${Date.now()}`,
-        // Vibration pattern for mobile devices (200ms vibrate, 100ms pause, 200ms vibrate)
-        vibrate: [200, 100, 200]
+        renotify: true,
+        requireInteraction: false,
+        silent: false,
+        vibrate: [200, 100, 200],
+        data: {
+          url: baseUrl
+        }
       };
 
       // On Mobile browsers (Chrome Android, Safari PWA), new Notification() fails;
