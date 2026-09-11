@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { 
-  generateDataKey, 
-  deriveKeyFromPassword, 
-  wrapDataKey, 
+import {
+  generateDataKey,
+  deriveKeyFromPassword,
+  deriveKeyFromPhrase,
+  wrapDataKey,
   generateRecoveryPhrase,
   bufferToBase64,
 } from '../lib/crypto';
@@ -21,7 +22,7 @@ export default function Setup() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [isRestoring, setIsRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
@@ -47,7 +48,7 @@ export default function Setup() {
       const mpKek = await deriveKeyFromPassword(masterPassword, mpSalt);
 
       const phrase = generateRecoveryPhrase();
-      const rpKek = await deriveKeyFromPassword(phrase, rpSalt);
+      const rpKek = await deriveKeyFromPhrase(phrase, rpSalt);
 
       const wrappedWithMp = await wrapDataKey(dataKey, mpKek);
       const wrappedWithRp = await wrapDataKey(dataKey, rpKek);
@@ -65,7 +66,7 @@ export default function Setup() {
       if (insertError) throw insertError;
 
       alert(`SETUP COMPLETE!\n\nIMPORTANT: Write down this 12-word recovery phrase. If you forget your Master Password, this is the ONLY way to recover your vault.\n\n${phrase}`);
-      
+
       navigate('/unlock');
     } catch (err: any) {
       setError(err.message || "An error occurred during setup");
@@ -84,9 +85,9 @@ export default function Setup() {
     try {
       const text = await file.text();
       const backupData: BackupData = JSON.parse(text);
-      
+
       await restoreBackup(backupData, user.id);
-      
+
       alert('Backup restored successfully! You can now unlock your vault.');
       navigate('/unlock');
     } catch (err: any) {
@@ -107,13 +108,13 @@ export default function Setup() {
 
       <form onSubmit={handleSetup} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '3rem' }}>
         {error && <div style={{ color: 'var(--error-color)', padding: '0.5rem', border: '1px solid var(--error-color)', borderRadius: 'var(--radius-sm)' }}>{error}</div>}
-        
+
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Master Password</label>
-          <input 
-            type="password" 
-            required 
-            value={masterPassword} 
+          <input
+            type="password"
+            required
+            value={masterPassword}
             onChange={(e) => setMasterPassword(e.target.value)}
             placeholder="Make it strong and memorable"
           />
@@ -122,10 +123,10 @@ export default function Setup() {
 
         <div>
           <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Confirm Password</label>
-          <input 
-            type="password" 
-            required 
-            value={confirmPassword} 
+          <input
+            type="password"
+            required
+            value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Type it again"
           />
@@ -141,9 +142,9 @@ export default function Setup() {
         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
           If you are reinstalling or lost your database, you can upload your vaultix-backup.json file to restore everything.
         </p>
-        
+
         {restoreError && <div style={{ color: 'var(--error-color)', padding: '0.5rem', marginBottom: '1rem', border: '1px solid var(--error-color)', borderRadius: 'var(--radius-sm)' }}>{restoreError}</div>}
-        
+
         <label className="btn-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', opacity: isRestoring ? 0.7 : 1 }}>
           <Upload size={18} />
           {isRestoring ? 'Restoring...' : 'Upload Backup File'}

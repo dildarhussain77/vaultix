@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useVault } from '../context/VaultContext';
-import { 
+import {
   deriveKeyFromPhrase,
   deriveKeyFromPassword,
   unwrapDataKey,
@@ -24,9 +24,9 @@ export default function Recover() {
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [newMasterPassword, setNewMasterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   const [dataKeyTemp, setDataKeyTemp] = useState<CryptoKey | null>(null);
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -104,7 +104,7 @@ export default function Recover() {
       // 5. Unlock vault and redirect
       unlockVault(dataKeyTemp);
       navigate('/');
-      
+
     } catch (err: any) {
       setError(err.message || "Failed to reset password.");
     } finally {
@@ -123,11 +123,11 @@ export default function Recover() {
 
         <form onSubmit={handleVerifyPhrase} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {error && <div style={{ color: 'var(--error-color)', padding: '0.5rem', border: '1px solid var(--error-color)', borderRadius: 'var(--radius-sm)' }}>{error}</div>}
-          
+
           <div>
-            <textarea 
-              required 
-              value={recoveryPhrase} 
+            <textarea
+              required
+              value={recoveryPhrase}
               onChange={(e) => setRecoveryPhrase(e.target.value.toLowerCase().trim())}
               placeholder="word1 word2 word3..."
               rows={3}
@@ -152,22 +152,22 @@ export default function Recover() {
 
       <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {error && <div style={{ color: 'var(--error-color)', padding: '0.5rem', border: '1px solid var(--error-color)', borderRadius: 'var(--radius-sm)' }}>{error}</div>}
-        
+
         <div>
-          <input 
-            type="password" 
-            required 
-            value={newMasterPassword} 
+          <input
+            type="password"
+            required
+            value={newMasterPassword}
             onChange={(e) => setNewMasterPassword(e.target.value)}
             placeholder="New Master Password"
           />
         </div>
 
         <div>
-          <input 
-            type="password" 
-            required 
-            value={confirmPassword} 
+          <input
+            type="password"
+            required
+            value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Confirm New Password"
           />

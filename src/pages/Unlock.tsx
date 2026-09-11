@@ -1,10 +1,11 @@
+import { verifyBiometrics, getBiometricConfig } from '../lib/biometrics';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useVault } from '../context/VaultContext';
-import { 
-  deriveKeyFromPassword, 
+import {
+  deriveKeyFromPassword,
   unwrapDataKey,
   base64ToBuffer
 } from '../lib/crypto';
@@ -36,7 +37,7 @@ export default function Unlock() {
       } catch (err) {
         const cache = await loadEncryptedVaultCache(user.id);
         if (!cache || !cache.wrapped_keys) {
-           navigate('/setup');
+          navigate('/setup');
         }
       }
     }
@@ -76,15 +77,26 @@ export default function Unlock() {
       const mpKek = await deriveKeyFromPassword(masterPassword, salt);
 
       // 3. Unwrap the Data Key
+      let dataKey: CryptoKey;
       try {
-        const dataKey = await unwrapDataKey(keyData.wrapped_data_key_mp, mpKek);
-        
-        // Success! Provide Data Key to Vault Context and redirect
-        unlockVault(dataKey);
-        navigate('/');
+        dataKey = await unwrapDataKey(keyData.wrapped_data_key_mp, mpKek);
       } catch (cryptoErr) {
         throw new Error("Invalid Master Password.");
       }
+
+      // 4. Gate 2: Biometric Verification (if enabled on this device)
+      const biometricConfig = getBiometricConfig(user.id);
+      if (biometricConfig?.enabled) {
+        const isVerified = await verifyBiometrics(user.id);
+        if (!isVerified) {
+          throw new Error("Biometric verification (Face/Fingerprint) failed or was cancelled.");
+        }
+      }
+
+      // Success! Both Master Password and Biometrics passed
+      unlockVault(dataKey);
+      navigate('/');
+
 
     } catch (err: any) {
       setError(err.message || "Failed to unlock vault.");
@@ -103,12 +115,12 @@ export default function Unlock() {
 
       <form onSubmit={handleUnlock} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {error && <div style={{ color: 'var(--error-color)', padding: '0.5rem', border: '1px solid var(--error-color)', borderRadius: 'var(--radius-sm)' }}>{error}</div>}
-        
+
         <div>
-          <input 
-            type="password" 
-            required 
-            value={masterPassword} 
+          <input
+            type="password"
+            required
+            value={masterPassword}
             onChange={(e) => setMasterPassword(e.target.value)}
             placeholder="Master Password"
             autoFocus
@@ -124,8 +136,8 @@ export default function Unlock() {
         <Link to="/recover" style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textDecoration: 'none' }}>
           Forgot Password?
         </Link>
-        
-        <button onClick={() => { if(window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
+
+        <button onClick={() => { if (window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}>
           <LogOut size={16} /> Sign out
         </button>
       </div>

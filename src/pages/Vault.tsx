@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useVault } from '../context/VaultContext';
-import { encryptData, decryptData, generateRecoveryPhrase, deriveKeyFromPassword, wrapDataKey, generateSalt, bufferToBase64 } from '../lib/crypto';
+import { encryptData, decryptData, generateRecoveryPhrase, deriveKeyFromPhrase, wrapDataKey, generateSalt, bufferToBase64 } from '../lib/crypto';
 import { saveEncryptedVaultCache, loadEncryptedVaultCache } from '../lib/cache';
-import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check, ShieldAlert, AlertTriangle, Search, ArrowLeft } from 'lucide-react';
+import { LogOut, Lock, Folder, Key, Plus, FileText, Download, ChevronRight, FolderPlus, Edit2, Trash2, Upload, Menu, X, Eye, EyeOff, Copy, Check, ShieldAlert, AlertTriangle, Search, ArrowLeft, Fingerprint } from 'lucide-react';
 import PasswordStrength from '../components/PasswordStrength';
+import { isBiometricsAvailable, getBiometricConfig, registerBiometrics, disableBiometrics } from '../lib/biometrics';
+
 
 interface CredentialData {
   title: string; // Required
@@ -38,7 +40,7 @@ interface FolderData {
 export default function Vault() {
   const { user, signOut } = useAuth();
   const { dataKey, lockVault } = useVault();
-  
+
   const [searchParams, setSearchParams] = useSearchParams();
   const currentFolderId = searchParams.get('folder');
 
@@ -49,20 +51,24 @@ export default function Vault() {
       setSearchParams({});
     }
   };
-  
+
   const [credentials, setCredentials] = useState<DecryptedCredential[]>([]);
   const [folders, setFolders] = useState<FolderData[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Mobile UI state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Form State
   const [showAddForm, setShowAddForm] = useState(false);
   const [showFolderForm, setShowFolderForm] = useState(false);
-  
+
   const [editingCredId, setEditingCredId] = useState<string | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+
+  // Biometrics State
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
   // Regeneration State
   const [newRecoveryPhrase, setNewRecoveryPhrase] = useState<string | null>(null);
@@ -83,10 +89,10 @@ export default function Vault() {
   const [formNotes, setFormNotes] = useState('');
 
   const [formFolderName, setFormFolderName] = useState('');
-  
+
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Form Visibility States
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [showFormToken, setShowFormToken] = useState(false);
@@ -111,6 +117,18 @@ export default function Vault() {
       await navigator.clipboard.writeText(text);
       setCopiedField(fieldId);
       setTimeout(() => setCopiedField(null), 2000);
+
+      // Auto-clear clipboard after 60 seconds if it still holds this text
+      setTimeout(async () => {
+        try {
+          const currentText = await navigator.clipboard.readText();
+          if (currentText === text) {
+            await navigator.clipboard.writeText('');
+          }
+        } catch (_) {
+          // If browser clipboard read permissions are not granted, fail silently
+        }
+      }, 60000);
     } catch (err) {
       alert('Failed to copy!');
     }
@@ -130,7 +148,7 @@ export default function Vault() {
           supabase.from('folders').select('*').eq('user_id', user.id),
           supabase.from('wrapped_keys').select('*').eq('user_id', user.id).single()
         ]);
-        
+
         if (cErr) throw cErr;
         if (fErr) throw fErr;
         if (kErr) throw kErr;
@@ -196,6 +214,36 @@ export default function Vault() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    async function checkBio() {
+      if (!user) return;
+      const available = await isBiometricsAvailable();
+      setBiometricsAvailable(available);
+      const config = getBiometricConfig(user.id);
+      setBiometricsEnabled(!!config?.enabled);
+    }
+    checkBio();
+  }, [user]);
+
+  const handleToggleBiometrics = async () => {
+    if (!user) return;
+    if (biometricsEnabled) {
+      if (confirm("Disable biometric verification on this device?")) {
+        disableBiometrics(user.id);
+        setBiometricsEnabled(false);
+      }
+    } else {
+      try {
+        await registerBiometrics(user.id, user.email || "user@vaultix");
+        setBiometricsEnabled(true);
+        alert("Device biometrics enabled! You will now be prompted for your Face/Fingerprint every time you unlock on this device.");
+      } catch (err: any) {
+        alert(err.message || "Failed to enable biometrics.");
+      }
+    }
+  };
+
+
   // --- CREDENTIAL CRUD ---
 
   const handleSaveCredential = async (e: React.FormEvent) => {
@@ -218,7 +266,7 @@ export default function Vault() {
 
     try {
       const { cipherTextBase64, ivBase64 } = await encryptData(payload, dataKey);
-      
+
       if (editingCredId) {
         const { error } = await supabase.from('credentials').update({
           data_encrypted: cipherTextBase64,
@@ -272,7 +320,7 @@ export default function Vault() {
     setFormSecretKey(cred.data.secretKey || '');
     setFormWebsite(cred.data.website || '');
     setFormNotes(cred.data.notes || '');
-    
+
     setEditingCredId(cred.id);
     setShowAddForm(true);
     setShowFolderForm(false);
@@ -286,7 +334,7 @@ export default function Vault() {
 
     try {
       const { cipherTextBase64, ivBase64 } = await encryptData({ name: formFolderName }, dataKey);
-      
+
       if (editingFolderId) {
         const { error } = await supabase.from('folders').update({
           name_encrypted: cipherTextBase64,
@@ -356,12 +404,12 @@ export default function Vault() {
     setFormSecretKey('');
     setFormWebsite('');
     setFormNotes('');
-    
+
     setFormFolderName('');
-    
+
     setEditingCredId(null);
     setEditingFolderId(null);
-    
+
     setShowFormPassword(false);
     setShowFormToken(false);
     setShowFormApiKey(false);
@@ -408,10 +456,10 @@ export default function Vault() {
     try {
       const text = await file.text();
       const backupData = JSON.parse(text);
-      
+
       const { restoreBackup } = await import('../lib/backup');
       await restoreBackup(backupData, user.id);
-      
+
       alert('Backup items restored successfully!');
       await loadData();
     } catch (err: any) {
@@ -423,7 +471,7 @@ export default function Vault() {
 
   const handleRegeneratePhrase = async () => {
     if (!user || !dataKey) return;
-    
+
     if (!window.confirm("Generating a new phrase will instantly invalidate your old one. Are you sure you want to continue?")) {
       return;
     }
@@ -432,19 +480,19 @@ export default function Vault() {
     try {
       const phrase = generateRecoveryPhrase();
       const salt = generateSalt();
-      const recoveryKek = await deriveKeyFromPassword(phrase, salt);
+      const recoveryKek = await deriveKeyFromPhrase(phrase, salt);
       const wrappedDataKey = await wrapDataKey(dataKey, recoveryKek);
-      
+
       const { error } = await supabase
         .from('wrapped_keys')
         .update({
           recovery_phrase_salt: bufferToBase64(salt),
-          wrapped_data_key_recovery: wrappedDataKey.wrappedKeyBase64
+          wrapped_data_key_rp: wrappedDataKey.wrappedKeyBase64
         })
         .eq('user_id', user.id);
-        
+
       if (error) throw error;
-      
+
       setNewRecoveryPhrase(phrase);
       await loadData();
     } catch (err) {
@@ -501,14 +549,14 @@ export default function Vault() {
       <div style={{ marginLeft: depth > 0 ? '1rem' : '0' }}>
         {children.map(f => (
           <div key={f.id}>
-            <div 
+            <div
               onClick={() => { handleFolderChange(f.id); setSidebarOpen(false); }}
-              style={{ 
-                padding: '0.5rem', 
-                cursor: 'pointer', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
+              style={{
+                padding: '0.5rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
                 backgroundColor: currentFolderId === f.id ? 'var(--bg-tertiary)' : 'transparent',
                 borderRadius: 'var(--radius-sm)'
               }}
@@ -564,8 +612,8 @@ export default function Vault() {
   return (
     <div className="vault-layout">
       {/* Mobile Sidebar Overlay */}
-      <div 
-        className={`mobile-overlay ${sidebarOpen ? 'open' : ''}`} 
+      <div
+        className={`mobile-overlay ${sidebarOpen ? 'open' : ''}`}
         onClick={() => setSidebarOpen(false)}
       ></div>
 
@@ -579,16 +627,16 @@ export default function Vault() {
             <X size={24} />
           </button>
         </div>
-        
+
         <div style={{ flex: 1, overflowY: 'auto', marginBottom: '1rem' }}>
-          <div 
+          <div
             onClick={() => { handleFolderChange(null); setSidebarOpen(false); }}
-            style={{ 
-              padding: '0.5rem', 
-              cursor: 'pointer', 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '0.5rem', 
+            style={{
+              padding: '0.5rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
               backgroundColor: currentFolderId === null ? 'var(--bg-tertiary)' : 'transparent',
               borderRadius: 'var(--radius-sm)',
               marginBottom: '0.5rem'
@@ -603,18 +651,38 @@ export default function Vault() {
           <button onClick={exportBackup} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
             <Download size={16} /> Export Backup
           </button>
-          
+
           <label className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
             <Upload size={16} /> Import Backup
             <input type="file" accept=".json" onChange={handleImportBackup} style={{ display: 'none' }} />
           </label>
+
+          {biometricsAvailable && (
+            <button
+              onClick={handleToggleBiometrics}
+              className="btn-secondary"
+              style={{
+                width: '100%',
+                marginBottom: '0.5rem',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: biometricsEnabled ? 'var(--accent-teal)' : 'var(--text-secondary)'
+              }}
+            >
+              <Fingerprint size={16} />
+              {biometricsEnabled ? 'Biometrics: Enabled' : 'Enable Device Biometrics'}
+            </button>
+          )}
+
           <button onClick={handleRegeneratePhrase} disabled={isRegenerating} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-purple)' }}>
             <ShieldAlert size={16} /> {isRegenerating ? 'Regenerating...' : 'Regenerate Phrase'}
           </button>
-          <button onClick={() => { if(window.confirm("Are you sure you want to lock the vault?")) lockVault(); }} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+          <button onClick={() => { if (window.confirm("Are you sure you want to lock the vault?")) lockVault(); }} className="btn-secondary" style={{ width: '100%', marginBottom: '0.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
             <Lock size={16} /> Lock Vault
           </button>
-          <button onClick={() => { if(window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ width: '100%', padding: '0.5rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <button onClick={() => { if (window.confirm("Are you sure you want to sign out?")) signOut(); }} style={{ width: '100%', padding: '0.5rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
             <LogOut size={16} /> Sign out
           </button>
         </div>
@@ -622,13 +690,13 @@ export default function Vault() {
 
       {/* Main Content */}
       <div className="vault-main">
-        
+
         {/* Breadcrumb / Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem', color: 'var(--text-secondary)' }}>
           <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)} style={{ color: 'var(--text-primary)' }}>
             <Menu size={24} />
           </button>
-          
+
           {currentFolderId && (
             <button onClick={handleNavigateBack} style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', paddingRight: '0.5rem', borderRight: '1px solid var(--border-color)', marginRight: '0.5rem' }}>
               <ArrowLeft size={18} />
@@ -636,15 +704,15 @@ export default function Vault() {
           )}
 
           <span onClick={() => handleFolderChange(null)} style={{ cursor: 'pointer', color: currentFolderId === null ? 'var(--text-primary)' : 'inherit', fontWeight: currentFolderId === null ? 'bold' : 'normal' }}>Home</span>
-          
+
           {getBreadcrumbTrail(currentFolderId).map((f, index, arr) => (
             <React.Fragment key={f.id}>
               <ChevronRight size={16} />
-              <span 
-                onClick={() => handleFolderChange(f.id)} 
-                style={{ 
-                  cursor: 'pointer', 
-                  color: index === arr.length - 1 ? 'var(--text-primary)' : 'inherit', 
+              <span
+                onClick={() => handleFolderChange(f.id)}
+                style={{
+                  cursor: 'pointer',
+                  color: index === arr.length - 1 ? 'var(--text-primary)' : 'inherit',
                   fontWeight: index === arr.length - 1 ? 'bold' : 'normal',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
@@ -661,9 +729,9 @@ export default function Vault() {
         {/* Search Bar */}
         <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
           <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input 
-            type="text" 
-            placeholder="Search credentials by title or username..." 
+          <input
+            type="text"
+            placeholder="Search credentials by title or username..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ width: '100%', paddingLeft: '3rem', backgroundColor: 'var(--bg-tertiary)' }}
@@ -694,9 +762,9 @@ export default function Vault() {
         {showAddForm && (
           <form onSubmit={handleSaveCredential} style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--radius-md)', marginBottom: '2rem', border: '1px solid var(--border-color)' }}>
             <h3>{editingCredId ? 'Edit Credential' : `New Credential ${currentFolder ? `in ${currentFolder.name}` : 'in Home'}`}</h3>
-            
+
             <div style={{ display: 'grid', gap: '1rem', marginTop: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))' }}>
-              
+
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Title / Name *</label>
                 <input type="text" placeholder="e.g. Gmail, AWS Console" required value={formTitle} onChange={e => setFormTitle(e.target.value)} />
@@ -799,8 +867,8 @@ export default function Vault() {
           <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
             {/* Render subfolders */}
             {displayedFolders.map(folder => (
-              <div 
-                key={folder.id} 
+              <div
+                key={folder.id}
                 onClick={() => handleFolderChange(folder.id)}
                 style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
               >
@@ -814,7 +882,7 @@ export default function Vault() {
                 </div>
               </div>
             ))}
-            
+
             {/* Render credentials */}
             {displayedCredentials.map(cred => (
               <div key={cred.id} style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
@@ -832,7 +900,7 @@ export default function Vault() {
                 {renderField(cred.id, "Username", cred.data.username)}
                 {renderField(cred.id, "Email", cred.data.email)}
                 {renderSensitiveField(cred.id, "password", "Password", cred.data.password)}
-                
+
                 {cred.data.website && (
                   <div style={{ marginBottom: '0.5rem' }}>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Website</span>
@@ -846,15 +914,15 @@ export default function Vault() {
                     </div>
                   </div>
                 )}
-                
+
                 {renderField(cred.id, "Account ID", cred.data.accountId)}
                 {renderField(cred.id, "Phone", cred.data.phone)}
                 {renderField(cred.id, "Recovery Info", cred.data.recoveryContact)}
-                
+
                 {renderSensitiveField(cred.id, "token", "Token", cred.data.token)}
                 {renderSensitiveField(cred.id, "apiKey", "API Key", cred.data.apiKey)}
                 {renderSensitiveField(cred.id, "secretKey", "Secret Key", cred.data.secretKey)}
-                
+
                 {cred.data.notes && (
                   <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
@@ -874,7 +942,7 @@ export default function Vault() {
           </div>
         )}
       </div>
-      
+
       {/* Recovery Phrase Modal */}
       {newRecoveryPhrase && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
@@ -884,14 +952,14 @@ export default function Vault() {
             <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
               Your old recovery phrase is now completely invalid. Please write down these 12 words in exactly this order and store them somewhere safe. <strong>We cannot recover them for you.</strong>
             </p>
-            
-            <div style={{ 
-              backgroundColor: 'var(--bg-tertiary)', 
-              padding: '1.5rem', 
-              borderRadius: 'var(--radius-sm)', 
-              fontSize: '1.25rem', 
-              fontWeight: 'bold', 
-              letterSpacing: '1px', 
+
+            <div style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              padding: '1.5rem',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '1.25rem',
+              fontWeight: 'bold',
+              letterSpacing: '1px',
               lineHeight: '1.5',
               wordSpacing: '0.5rem',
               marginBottom: '2rem'
