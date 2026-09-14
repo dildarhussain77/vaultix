@@ -109,6 +109,9 @@ export default function Unlock() {
         throw new Error("Invalid Master Password.");
       }
 
+      // Wipe master password string from state right away
+      setMasterPassword('');
+
       // 4. Gate 2: Biometric Verification (if enabled on this device)
       const biometricConfig = getBiometricConfig(user.id);
       if (biometricConfig?.enabled) {
@@ -153,6 +156,10 @@ export default function Unlock() {
             value={masterPassword}
             onChange={(e) => setMasterPassword(e.target.value)}
             placeholder="Master Password"
+            autoComplete="current-password"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
             autoFocus
           />
         </div>
@@ -167,16 +174,16 @@ export default function Unlock() {
           Forgot Password?
         </Link>
 
-        <button 
-          onClick={async () => { 
+        <button
+          onClick={async () => {
             const confirmed = await showConfirm({
               title: "Sign out",
               message: "Are you sure you want to sign out of your account?",
               confirmText: "Sign out",
               cancelText: "Stay"
             });
-            if (confirmed) signOut(); 
-          }} 
+            if (confirmed) signOut();
+          }}
           style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-secondary)' }}
         >
           <LogOut size={16} /> Sign out

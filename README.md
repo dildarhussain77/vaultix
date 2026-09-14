@@ -96,22 +96,34 @@ To enable broadcast and admin push notifications even when the user's browser or
     3.  **Admin Broadcasting**: A Supabase Edge Function uses VAPID private keys to dispatch encrypted background payloads.
     4.  **Background Wakeup**: The device's Service Worker receives the `push` event and displays the notification banner even if Vaultix is closed.
 
-## 🛠️ Technology Stack
+## 🛠️ Complete Technology Stack & Tools Architecture
 
-| Category | Technology |
+A comprehensive breakdown of all frameworks, libraries, tools, and core architectural concepts implemented across Vaultix:
+
+| Technology / Tool / Concept | Purpose & Implementation in Vaultix |
 | :--- | :--- |
-| **Frontend Framework** | React 18 (TypeScript) |
-| **Build Tool** | Vite |
-| **Routing** | React Router DOM (`HashRouter` for GitHub Pages support) |
-| **Styling** | Vanilla CSS Design System (`index.css`) |
-| **Icons** | Lucide React |
-| **Backend / Database** | Supabase (PostgreSQL with Row Level Security) |
-| **Cryptography** | Native Web Crypto API (`window.crypto.subtle`) |
-| **Authentication** | Supabase Auth (Email/Password + 6-digit Email OTP) |
-| **Biometrics** | WebAuthn API (`navigator.credentials`) |
-| **Notifications** | Native Web Notifications API (`Notification`) |
-| **Offline Cache** | IndexedDB via `idb-keyval` |
-| **PWA Support** | `vite-plugin-pwa` + Service Workers |
+| **React 19 (TypeScript)** | Core frontend component framework with strict compile-time type checking and zero runtime type errors. |
+| **Vite 8** | Modern, high-speed development server and production bundler optimizing code splitting and asset hashing. |
+| **React Router DOM 7 (`HashRouter`)** | Client-side routing with clean navigation and deep link support compatible with GitHub Pages hosting. |
+| **Supabase Client (`@supabase/supabase-js`)** | Backend-as-a-Service providing PostgreSQL persistence, real-time auth, and zero-knowledge encrypted data sync. |
+| **PostgreSQL Row Level Security (RLS)** | Server-side authorization ensuring users can only read and write their own encrypted rows (`auth.uid() = user_id`). |
+| **Supabase Auth & Email OTP** | User identity management supporting secure credential authentication and 6-digit two-step device verification. |
+| **Web Crypto API (`crypto.subtle`)** | Hardware-accelerated browser cryptographic engine running AES-GCM, PBKDF2, and AES-KW entirely client-side. |
+| **PBKDF2 (Password-Based Key Derivation)** | Derives a 256-bit Key Encryption Key (KEK) using 300,000 SHA-256 iterations and random 16-byte salts against brute-force attacks. |
+| **AES-GCM (256-bit)** | Authenticated symmetric envelope encryption for credentials and folder names with unique 12-byte IVs per item. |
+| **AES-KW (Key Wrap / RFC 3394)** | Cryptographic wrapping and unwrapping of raw Data Keys using the Master Password and Recovery Phrase KEKs. |
+| **BIP39-Style Wordlist Derivation** | Generates a 12-word emergency recovery phrase allowing master password resets without server-side knowledge. |
+| **WebAuthn API (`navigator.credentials`)** | Hardware biometric authentication (Fingerprint / Touch ID / Face ID) creating physical two-factor verification. |
+| **Service Workers & Cache Storage** | Background script caching application assets for offline access and native mobile notification dispatching. |
+| **`vite-plugin-pwa`** | Progressive Web App integration providing web manifest, mobile installability, and auto-updating service worker lifecycle. |
+| **IndexedDB (`idb-keyval`)** | Asynchronous, client-side offline storage caching encrypted records for full functionality when offline. |
+| **Native Web Notifications API** | System alerts via OS banners and Service Worker (`reg.showNotification`) with custom vibration and status bar badges. |
+| **Vitest** | Fast, Vite-native test runner (equivalent to Python's `pytest`) automating cryptographic and logic validation. |
+| **GitHub Actions CI/CD (`deploy.yml`)** | Automated deployment pipeline that runs tests (`npm test`) and compiles (`tsc -b && vite build`) before publishing to GitHub Pages. |
+| **Clipboard API (`navigator.clipboard`)** | Secure copy utility paired with a 60-second automatic wipe timer and focus-aware memory clearing. |
+| **Vanilla CSS Design System** | Lightweight, high-performance dark glassmorphic design system (`index.css`) with zero external CSS runtime overhead. |
+| **Lucide React** | Consistent, tree-shakeable SVG iconography across mobile, tablet, and desktop interfaces. |
+| **OxLint / TypeScript Compiler (`tsc`)** | High-speed linting and static analysis ensuring code quality and build reliability. |
 
 ---
 
