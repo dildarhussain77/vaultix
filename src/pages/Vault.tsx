@@ -443,6 +443,15 @@ export default function Vault() {
     loadData();
   }, [loadData]);
 
+  // Folder lives in the URL, so browser/phone Back changes it without going through
+  // handleFolderChange. Close any open form so it can't linger in the wrong folder.
+  useEffect(() => {
+    setShowAddForm(false);
+    setShowFolderForm(false);
+    resetForms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFolderId]);
+
   useEffect(() => {
     async function checkBio() {
       if (!user) return;

@@ -54,6 +54,9 @@ export default function Auth() {
         
         if (data.user) {
           await registerCurrentDevice(data.user.id);
+          // Brand-new account: this device is trusted by definition. Without this the
+          // auth listener's device check can race the registration and bounce to /auth.
+          if (data.session) setDeviceVerified(true, data.user.id);
         }
         navigate('/setup');
       } else {
@@ -74,8 +77,10 @@ export default function Auth() {
 
             if (otpError) {
               console.warn("Could not trigger Email OTP:", otpError);
-              // If Supabase email provider is unconfigured, register device and proceed
-              setDeviceVerified(true);
+              // Fail closed: never skip device verification if the code could not be sent
+              await supabase.auth.signOut();
+              setError(otpError.message || 'Could not send the verification code. Please try again in a few minutes.');
+              return;
             } else {
               setAwaitingOtp(true);
               setMessage(`New device detected! A 6-digit verification code was sent to ${email}.`);
